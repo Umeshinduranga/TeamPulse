@@ -1,15 +1,20 @@
-
 import { Router } from 'express';
-import { authController } from '../controllers/authController';
-import { asyncHandler } from '../middleware/asyncHandler';
-import { requireAuth } from '../middleware/auth';
-import { validate } from '../middleware/validate';
-import { loginSchema, registerSchema } from '../validators/authValidators';
+import { register, login, logout, getMe } from '../controllers/authController';
+import { protect, authorize } from '../middleware/auth';
+// import { validate } from '../middleware/validate';
+// import { registerSchema, loginSchema } from '../validators/authValidators';
 
 const router = Router();
 
-router.post('/register', validate(registerSchema), asyncHandler(authController.register));
-router.post('/login', validate(loginSchema), asyncHandler(authController.login));
-router.get('/me', requireAuth, asyncHandler(authController.me));
+// router.post('/register', validate(registerSchema), register);
+router.post('/register', register); 
+router.post('/login', login);
+router.get('/logout', logout);
+router.get('/me', protect, getMe);
+
+// Dummy route to test RBAC manager guard
+router.get('/admin-only', protect, authorize('Manager'), (req, res) => {
+  res.status(200).json({ success: true, message: 'Welcome to the manager zone' });
+});
 
 export default router;
