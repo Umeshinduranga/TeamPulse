@@ -1,6 +1,5 @@
 
-import type { JwtPayload } from './utils/jwt';
-
+import { JwtPayload } from 'jsonwebtoken';
 declare global {
   namespace Express {
     interface Request {

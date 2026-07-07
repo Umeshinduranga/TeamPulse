@@ -1,30 +1,17 @@
-import cookieParser from 'cookie-parser';
-import cors from 'cors';
-import dotenv from 'dotenv';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes';
-import dashboardRoutes from './routes/dashboardRoutes';
-import projectRoutes from './routes/projectRoutes';
-import reportRoutes from './routes/reportRoutes';
 import { errorHandler } from './middleware/errorHandler';
-
-dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
+// Mount routes
+app.use('/api/v1/auth', authRoutes);
 
-app.use('/api/auth', authRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-
+// Error handler MUST be the last middleware
 app.use(errorHandler);
 
 export default app;

@@ -1,19 +1,18 @@
-import type { NextFunction, Request, Response } from 'express';
-import { ZodError } from 'zod';
+import { Request, Response, NextFunction } from 'express';
 import { ApiError } from '../utils/ApiError';
 
-export const errorHandler = (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  if (error instanceof ApiError) {
-    return res.status(error.statusCode).json({ success: false, message: error.message });
+export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  let statusCode = err.statusCode || 500;
+  let message = err.message || 'Internal Server Error';
+
+  // Handle Mongoose duplicate key error
+  if (err.code === 11000) {
+    statusCode = 400;
+    message = 'Duplicate field value entered';
   }
 
-  if (error instanceof ZodError) {
-    return res.status(400).json({ success: false, message: 'Validation failed', errors: error.flatten() });
-  }
-
-  if (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: number }).code === 11000) {
-    return res.status(409).json({ success: false, message: 'Duplicate key error' });
-  }
-
-  return res.status(500).json({ success: false, message: 'Internal server error' });
+  res.status(statusCode).json({
+    success: false,
+    error: message,
+  });
 };
