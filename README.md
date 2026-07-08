@@ -1,5 +1,5 @@
 
-# sisenco - Weekly Report Generator & Team Dashboard
+# TeamPulse - Weekly Report Generator & Team Dashboard
 
 This project is a production-grade, multi-tenant full-stack web workspace designed for team synchronization. It streamlines corporate productivity by enabling team members to seamlessly submit structured, unalterable weekly performance reports while granting managers aggregated visual analytics, performance trends, compliance tracking, and role-guarded auditing tools through a data-driven dashboard.
 
