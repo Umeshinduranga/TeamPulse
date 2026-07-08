@@ -1,18 +1,17 @@
 import { Router } from 'express';
-import { reportController } from '../controllers/reportController';
-import { requireAuth, requireRole } from '../middleware/auth';
+import { createReport, getMyReports, updateReport, submitReport } from '../controllers/reportController';
+import { protect, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { asyncHandler } from '../middleware/asyncHandler';
 import { reportCreateSchema, reportUpdateSchema } from '../validators/reportValidators';
 
 const router = Router();
 
-router.use(requireAuth);
+// Only members manage personal reports (Managers will have a separate dashboard route)
+router.use(protect, authorize('member')); 
 
-router.get('/my', asyncHandler(reportController.getMyReports));
-router.post('/', validate(reportCreateSchema), asyncHandler(reportController.create));
-router.put('/:id', validate(reportUpdateSchema), asyncHandler(reportController.update));
-router.patch('/:id/submit', asyncHandler(reportController.submit));
-router.get('/all', requireRole('manager'), asyncHandler(reportController.getAll));
+router.post('/', validate(reportCreateSchema), createReport);
+router.get('/me', getMyReports);
+router.put('/:id', validate(reportUpdateSchema), updateReport);
+router.patch('/:id/submit', submitReport); // PATCH is semantic for changing a single state (status)
 
 export default router;
