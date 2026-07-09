@@ -50,7 +50,7 @@ export const dashboardService = {
     const now = new Date();
     const isLate = now > weekEnd;
 
-    return members.map((m) => {
+    return members.map((m: any) => {
       const id = m._id.toString();
       let status: 'submitted' | 'pending' | 'late' = 'pending';
       if (submittedUserIds.has(id)) status = 'submitted';
@@ -64,7 +64,7 @@ export const dashboardService = {
   async getSummaryMetrics() {
     const statusList = await this.getSubmissionStatus();
     const totalMembers = statusList.length;
-    const submitted = statusList.filter((s) => s.status === 'submitted').length;
+    const submitted = statusList.filter((s: any) => s.status === 'submitted').length;
     const complianceRate = totalMembers === 0 ? 0 : Math.round((submitted / totalMembers) * 100);
 
     const { weekStart, weekEnd } = getCurrentWeekRange();

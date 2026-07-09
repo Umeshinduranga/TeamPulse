@@ -1,5 +1,5 @@
 import { Report } from '../models/Report';
-import { UserModel } from '../models/User';
+import User from '../models/User';
 import { Project } from '../models/Project';
 import { FilterQuery } from 'mongoose';
 import { IReport } from '../models/Report';
@@ -13,11 +13,11 @@ export const dashboardRepository = {
   },
 
   async countAllMembers() {
-    return UserModel.countDocuments({ role: 'member' });
+    return User.countDocuments({ role: 'member' });
   },
 
   async findAllMembers() {
-    return UserModel.find({ role: 'member' }).select('fullName email');
+    return User.find({ role: 'member' }).select('fullName email');
   },
 
   async findAllProjects() {

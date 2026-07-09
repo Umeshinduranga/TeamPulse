@@ -38,3 +38,33 @@ export interface ReportFormInput {
   hoursWorked?: number;
   notes: string;
 }
+
+export interface SubmissionStatus {
+  userId: string;
+  fullName: string;
+  status: 'submitted' | 'pending' | 'late';
+}
+
+export interface SummaryMetrics {
+  totalSubmitted: number;
+  totalMembers: number;
+  complianceRate: number;
+  openBlockers: number;
+}
+
+export interface WorkloadItem {
+  name: string;
+  count: number;
+}
+
+export interface TrendItem {
+  week: string;
+  count: number;
+}
+
+export interface DashboardFilters {
+  member?: string;
+  project?: string;
+  weekStart?: string;
+  weekEnd?: string;
+}
