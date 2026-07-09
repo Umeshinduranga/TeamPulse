@@ -1,75 +1,64 @@
-// frontend/lib/auth-context.tsx
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { apiClient } from './apiClient';
-import { useRouter } from 'next/navigation';
+import { User } from './types';
 
-interface User {
-  _id: string;
-  fullName: string;
-  email: string;
-  role: 'member' | 'manager';
-}
-
-interface AuthContextType {
+interface AuthContextValue {
   user: User | null;
-  loading: boolean;
-  login: (data: any) => Promise<void>;
-  register: (data: any) => Promise<void>;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<User>;
+  register: (fullName: string, email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await apiClient<User>('/auth/me', { method: 'GET' });
-        if (res.success && res.data) setUser(res.data);
-      } catch (error) {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkAuth();
+    apiClient
+      .get<{ user: User }>('/api/auth/me')
+      .then((res) => setUser(res.data.user))
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (data: any) => {
-    await apiClient('/auth/login', { method: 'POST', data });
-    const me = await apiClient<User>('/auth/me', { method: 'GET' });
-    setUser(me.data!);
-    router.push(me.data!.role === 'manager' ? '/dashboard' : '/reports');
-  };
+  async function login(email: string, password: string) {
+    const res = await apiClient.post<{ user: User; token: string }>('/api/auth/login', {
+      email,
+      password,
+    });
+    setUser(res.data.user);
+    return res.data.user;
+  }
 
-  const register = async (data: any) => {
-    await apiClient('/auth/register', { method: 'POST', data });
-    const me = await apiClient<User>('/auth/me', { method: 'GET' });
-    setUser(me.data!);
-    router.push(me.data!.role === 'manager' ? '/dashboard' : '/reports');
-  };
+  async function register(fullName: string, email: string, password: string) {
+    const res = await apiClient.post<{ user: User; token: string }>('/api/auth/register', {
+      fullName,
+      email,
+      password,
+    });
+    setUser(res.data.user);
+    return res.data.user;
+  }
 
-  const logout = async () => {
-    await apiClient('/auth/logout', { method: 'GET' });
+  async function logout() {
+    await apiClient.post('/api/auth/logout', {});
     setUser(null);
-    router.push('/login');
-  };
+  }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
-  return context;
-};
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

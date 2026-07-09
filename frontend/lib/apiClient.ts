@@ -1,37 +1,66 @@
-// frontend/lib/apiClient.ts
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-
-interface FetchOptions extends RequestInit {
-  data?: any;
+interface ApiSuccess<T> {
+  success: true;
+  data: T;
 }
 
-export const apiClient = async <T>(endpoint: string, options: FetchOptions = {}) => {
-  const { data, headers, ...customConfig } = options;
+interface ApiFailure {
+  success: false;
+  error: string;
+}
 
-  const config: RequestInit = {
-    ...customConfig,
-    credentials: 'include', // Crucial for your HTTP-only cookie!
+type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
+
+class ApiClientError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<ApiSuccess<T>> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...headers,
+      ...options.headers,
     },
-  };
+  });
 
-  if (data) {
-    config.body = JSON.stringify(data);
+  // Guard against non-JSON responses (e.g. HTML error pages from a crashed/unreachable server)
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new ApiClientError(
+      `Server returned an unexpected response (${res.status}). Is the backend running?`,
+      res.status
+    );
   }
 
-  try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, config);
-    const result = await response.json();
+  const json: ApiResponse<T> = await res.json();
 
-    if (!response.ok) {
-      throw new Error(result.error || 'Something went wrong');
-    }
-
-    return result as { success: boolean; data?: T; token?: string };
-  } catch (error: any) {
-    throw new Error(error.message || 'Network error occurred');
+  if (!json.success) {
+    throw new ApiClientError(json.error, res.status);
   }
+
+  return json;
+}
+
+export const apiClient = {
+  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
+
+  post: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
+
+export { ApiClientError };
