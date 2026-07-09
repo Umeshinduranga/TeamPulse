@@ -5,7 +5,7 @@ import bcrypt from 'bcrypt';
 
 export const authService = {
   register: async (data: any) => {
-    const { fullName, email, password, role } = data; // Note: using fullName to match your schema
+    const { fullName, email, password, role } = data;
     
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -14,11 +14,14 @@ export const authService = {
     const user = await authRepository.createUser({
       fullName,
       email,
-      passwordHash: hashedPassword, // Changed from password to passwordHash
-      role: role || 'member'        // Changed from 'Team Member' to 'member'
+      passwordHash: hashedPassword,
+      role: role || 'member'
     });
 
-    return generateToken(user._id.toString(), user.role);
+    const token = generateToken(user._id.toString(), user.role);
+    // Return sanitized user (no passwordHash) + token
+    const userObj = { _id: user._id, fullName: user.fullName, email: user.email, role: user.role };
+    return { user: userObj, token };
   },
 
   login: async (data: any) => {
@@ -27,10 +30,11 @@ export const authService = {
 
     if (!user) throw new ApiError(401, 'Invalid credentials');
 
-    // Compare the raw password with user.passwordHash
     const isMatch = await bcrypt.compare(password, user.passwordHash); 
     if (!isMatch) throw new ApiError(401, 'Invalid credentials');
 
-    return generateToken(user._id.toString(), user.role);
+    const token = generateToken(user._id.toString(), user.role);
+    const userObj = { _id: user._id, fullName: user.fullName, email: user.email, role: user.role };
+    return { user: userObj, token };
   }
 };
