@@ -4,7 +4,7 @@ import { projectService } from '../services/projectService';
 
 export const getAllProjects = asyncHandler(async (req: Request, res: Response) => {
   const projects = await projectService.getAllProjects();
-  res.status(200).json({ success: true, data: projects });
+  res.status(200).json({ success: true, data: { projects } });
 });
 
 export const createProject = asyncHandler(async (req: Request, res: Response) => {
@@ -15,12 +15,12 @@ export const createProject = asyncHandler(async (req: Request, res: Response) =>
   };
   
   const project = await projectService.createProject(projectData);
-  res.status(201).json({ success: true, data: project });
+  res.status(201).json({ success: true, data: { project } });
 });
 
 export const updateProject = asyncHandler(async (req: Request, res: Response) => {
   const project = await projectService.updateProject(req.params.id, req.body);
-  res.status(200).json({ success: true, data: project });
+  res.status(200).json({ success: true, data: { project } });
 });
 
 export const deleteProject = asyncHandler(async (req: Request, res: Response) => {
