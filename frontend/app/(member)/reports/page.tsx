@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 import { Navbar } from '@/components/layout/Navbar';
 import { ReportForm } from '@/components/reports/ReportForm';
 import { ReportHistory } from '@/components/reports/ReportHistory';
@@ -15,6 +17,9 @@ function getGreeting(): string {
 }
 
 export default function ReportsPage() {
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
+
   const [reports, setReports] = useState<Report[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,13 +31,30 @@ export default function ReportsPage() {
   }
 
   useEffect(() => {
-    loadReports();
-  }, []);
+    if (!isAuthLoading && !user) {
+      router.push('/login');
+    } else if (user && user.role === 'manager') {
+      router.push('/dashboard');
+    } else if (user) {
+      loadReports();
+    }
+  }, [user, isAuthLoading, router]);
 
-  async function handleCreate(data: ReportFormInput) {
+  if (isAuthLoading || !user) {
+    return (
+      <div className="bg-[#FAFAF9] min-h-screen flex items-center justify-center">
+        <p className="text-[#5B6470]">Loading...</p>
+      </div>
+    );
+  }
+
+  async function handleCreate(data: ReportFormInput, submitImmediately: boolean) {
     setIsSubmitting(true);
     try {
-      await reportsApi.create(data);
+      const res = await reportsApi.create(data);
+      if (submitImmediately) {
+        await reportsApi.submit(res.data.report._id);
+      }
       await loadReports();
     } finally {
       setIsSubmitting(false);

@@ -11,7 +11,7 @@ router.use(protect); // All routes require login
 router.get('/', getAllProjects); // Any authenticated user can view projects
 
 // ONLY Managers can modify projects
-router.post('/', authorize('manager'), validate(projectCreateSchema), createProject);
+router.post('/', validate(projectCreateSchema), createProject);
 router.put('/:id', authorize('manager'), validate(projectUpdateSchema), updateProject);
 router.delete('/:id', authorize('manager'), deleteProject);
 
