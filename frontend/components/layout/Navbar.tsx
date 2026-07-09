@@ -48,9 +48,11 @@ export function Navbar() {
 
         {/* Nav Links */}
         <div className="flex items-center gap-6 ml-2 pt-[18px]">
-          <Link href="/reports" className={linkClass('/reports')}>
-            My Reports
-          </Link>
+          {user.role === 'member' && (
+            <Link href="/reports" className={linkClass('/reports')}>
+              My Reports
+            </Link>
+          )}
           {user.role === 'manager' && (
             <Link href="/dashboard" className={linkClass('/dashboard')}>
               Team Dashboard
