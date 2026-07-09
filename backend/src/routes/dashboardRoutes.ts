@@ -1,16 +1,16 @@
 import { Router } from 'express';
-import { asyncHandler } from '../middleware/asyncHandler';
-import { requireAuth, requireRole } from '../middleware/auth';
 import { dashboardController } from '../controllers/dashboardController';
+import { protect, authorize } from '../middleware/auth';
+import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-router.use(requireAuth);
-router.use(requireRole('manager'));
+router.use(protect, authorize('manager'));
 
-router.get('/summary', asyncHandler(dashboardController.summary));
-router.get('/submission-status', asyncHandler(dashboardController.submissionStatus));
-router.get('/workload', asyncHandler(dashboardController.workload));
-router.get('/project-breakdown', asyncHandler(dashboardController.projectBreakdown));
+router.get('/reports', asyncHandler(dashboardController.getReports));
+router.get('/summary', asyncHandler(dashboardController.getSummary));
+router.get('/submission-status', asyncHandler(dashboardController.getSubmissionStatus));
+router.get('/workload', asyncHandler(dashboardController.getWorkloadByProject));
+router.get('/tasks-trend', asyncHandler(dashboardController.getTasksTrend));
 
 export default router;
