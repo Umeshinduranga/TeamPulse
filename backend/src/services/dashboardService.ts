@@ -1,133 +1,114 @@
-import { FilterQuery } from 'mongoose';
-import { Project } from '../models/Project';
-import { Report, type IReport } from '../models/Report';
-import { UserModel } from '../models/User';
+import { dashboardRepository } from '../repositories/dashboardRepository';
 
-type DashboardFilters = {
-  weekStart?: string;
-  weekEnd?: string;
-  projectId?: string;
-  memberId?: string;
-};
-
-const buildQuery = (filters: DashboardFilters) => {
-  const query: FilterQuery<IReport> = {};
-
+function buildFilter(filters: { member?: string; project?: string; weekStart?: Date; weekEnd?: Date }) {
+  const query: Record<string, unknown> = {};
+  if (filters.member) query.userId = filters.member;
+  if (filters.project) query.projectId = filters.project;
   if (filters.weekStart || filters.weekEnd) {
     query.weekStart = {
-      ...(filters.weekStart ? { $gte: new Date(filters.weekStart) } : {}),
-      ...(filters.weekEnd ? { $lte: new Date(filters.weekEnd) } : {}),
-    } as FilterQuery<IReport>["weekStart"];
+      ...(filters.weekStart && { $gte: filters.weekStart }),
+      ...(filters.weekEnd && { $lte: filters.weekEnd }),
+    };
   }
-
-  if (filters.projectId) {
-    query.projectId = filters.projectId;
-  }
-
-  if (filters.memberId) {
-    query.userId = filters.memberId;
-  }
-
   return query;
-};
+}
+
+function getCurrentWeekRange() {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { weekStart: monday, weekEnd: sunday };
+}
 
 export const dashboardService = {
-  async getSummary(filters: DashboardFilters = {}) {
-    const query = buildQuery(filters);
+  async getFilteredReports(filters: { member?: string; project?: string; weekStart?: Date; weekEnd?: Date }) {
+    const query = buildFilter(filters);
+    return dashboardRepository.findFilteredReports(query);
+  },
 
-    const [totalReports, submittedReports, draftReports, openBlockers, totalHours] = await Promise.all([
-      Report.countDocuments(query),
-      Report.countDocuments({ ...query, status: 'submitted' }),
-      Report.countDocuments({ ...query, status: 'draft' }),
-      Report.countDocuments({ ...query, blockers: { $regex: '\S' } }),
-      Report.aggregate([{ $match: query }, { $group: { _id: null, hoursWorked: { $sum: { $ifNull: ['$hoursWorked', 0] } } } }]),
-    ]);
+  // Derived, not stored — computed fresh every time so it can never go stale
+  async getSubmissionStatus() {
+    const { weekStart, weekEnd } = getCurrentWeekRange();
+    const members = await dashboardRepository.findAllMembers();
+    const thisWeekReports = await dashboardRepository.findFilteredReports({
+      weekStart: { $gte: weekStart, $lte: weekEnd },
+    });
 
-    const complianceRate = totalReports === 0 ? 0 : Math.round((submittedReports / totalReports) * 100);
+    const submittedUserIds = new Set(
+      thisWeekReports.filter((r) => r.status === 'submitted').map((r) => r.userId._id?.toString() ?? r.userId.toString())
+    );
+    const draftUserIds = new Set(
+      thisWeekReports.filter((r) => r.status === 'draft').map((r) => r.userId._id?.toString() ?? r.userId.toString())
+    );
+
+    const now = new Date();
+    const isLate = now > weekEnd;
+
+    return members.map((m) => {
+      const id = m._id.toString();
+      let status: 'submitted' | 'pending' | 'late' = 'pending';
+      if (submittedUserIds.has(id)) status = 'submitted';
+      else if (isLate) status = 'late';
+      else if (draftUserIds.has(id)) status = 'pending';
+
+      return { userId: id, fullName: m.fullName, status };
+    });
+  },
+
+  async getSummaryMetrics() {
+    const statusList = await this.getSubmissionStatus();
+    const totalMembers = statusList.length;
+    const submitted = statusList.filter((s) => s.status === 'submitted').length;
+    const complianceRate = totalMembers === 0 ? 0 : Math.round((submitted / totalMembers) * 100);
+
+    const { weekStart, weekEnd } = getCurrentWeekRange();
+    const thisWeekReports = await dashboardRepository.findFilteredReports({
+      weekStart: { $gte: weekStart, $lte: weekEnd },
+    });
+    const openBlockers = thisWeekReports.filter((r) => r.blockers && r.blockers.trim().length > 0).length;
 
     return {
-      totalReports,
-      submittedReports,
-      draftReports,
-      openBlockers,
-      totalHours: totalHours[0]?.hoursWorked ?? 0,
+      totalSubmitted: submitted,
+      totalMembers,
       complianceRate,
+      openBlockers,
     };
   },
 
-  async getSubmissionStatus(filters: DashboardFilters = {}) {
-    const query = buildQuery(filters);
+  async getWorkloadByProject() {
+    const reports = await dashboardRepository.findFilteredReports({});
+    const projects = await dashboardRepository.findAllProjects();
 
-    return Report.aggregate([
-      { $match: query },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-      { $project: { _id: 0, status: '$_id', count: 1 } },
-      { $sort: { status: 1 } },
-    ]);
+    const counts: Record<string, number> = {};
+    projects.forEach((p) => {
+      counts[p.name] = 0;
+    });
+
+    reports.forEach((r) => {
+      const projectName = (r.projectId as any)?.name ?? 'Unknown';
+      counts[projectName] = (counts[projectName] ?? 0) + 1;
+    });
+
+    return Object.entries(counts).map(([name, count]) => ({ name, count }));
   },
 
-  async getWorkload(filters: DashboardFilters = {}) {
-    const query = buildQuery(filters);
+  async getTasksCompletedTrend() {
+    const reports = await dashboardRepository.findFilteredReports({ status: 'submitted' });
 
-    return Report.aggregate([
-      { $match: query },
-      { $group: { _id: '$userId', totalHours: { $sum: { $ifNull: ['$hoursWorked', 0] } }, reportCount: { $sum: 1 } } },
-      {
-        $lookup: {
-          from: UserModel.collection.name,
-          localField: '_id',
-          foreignField: '_id',
-          as: 'user',
-        },
-      },
-      { $unwind: '$user' },
-      {
-        $project: {
-          _id: 0,
-          userId: '$_id',
-          name: '$user.fullName',
-          email: '$user.email',
-          totalHours: 1,
-          reportCount: 1,
-        },
-      },
-      { $sort: { totalHours: -1 } },
-    ]);
-  },
+    const byWeek: Record<string, number> = {};
+    reports.forEach((r) => {
+      const key = r.weekStart.toISOString().slice(0, 10);
+      byWeek[key] = (byWeek[key] ?? 0) + 1;
+    });
 
-  async getProjectBreakdown(filters: DashboardFilters = {}) {
-    const query = buildQuery(filters);
-
-    return Report.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: '$projectId',
-          totalHours: { $sum: { $ifNull: ['$hoursWorked', 0] } },
-          reportCount: { $sum: 1 },
-          submittedCount: { $sum: { $cond: [{ $eq: ['$status', 'submitted'] }, 1, 0] } },
-        },
-      },
-      {
-        $lookup: {
-          from: Project.collection.name,
-          localField: '_id',
-          foreignField: '_id',
-          as: 'project',
-        },
-      },
-      { $unwind: '$project' },
-      {
-        $project: {
-          _id: 0,
-          projectId: '$_id',
-          name: '$project.name',
-          totalHours: 1,
-          reportCount: 1,
-          submittedCount: 1,
-        },
-      },
-      { $sort: { totalHours: -1 } },
-    ]);
+    return Object.entries(byWeek)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, count]) => ({ week, count }));
   },
 };
